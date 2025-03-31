@@ -4,108 +4,43 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
-import { Play, Pause, Volume2 } from "lucide-react"
-
-type MeditationExercise = {
-  id: string
-  title: string
-  description: string
-  duration: number
-  audioSrc?: string
-  script: string
-  category: "anxiety" | "stress" | "sleep" | "focus" | "general"
-}
-
-const meditationExercises: MeditationExercise[] = [
-  {
-    id: "breathing-1",
-    title: "Deep Breathing Exercise",
-    description: "A simple breathing technique to reduce anxiety and promote relaxation",
-    duration: 5,
-    script: "Find a comfortable position and close your eyes. Take a deep breath in through your nose for 4 counts. Hold for 2 counts. Exhale slowly through your mouth for 6 counts. Feel your body relaxing with each breath. Continue this pattern, focusing only on your breath.",
-    category: "anxiety"
-  },
-  {
-    id: "body-scan-1",
-    title: "Progressive Body Scan",
-    description: "A guided body scan to release tension and promote physical relaxation",
-    duration: 10,
-    script: "Lie down in a comfortable position. Starting at your toes, bring awareness to each part of your body, moving upward. Notice any tension and consciously release it as you exhale. Move from your toes to your feet, legs, hips, abdomen, chest, hands, arms, shoulders, neck, and finally your head.",
-    category: "stress"
-  },
-  {
-    id: "sleep-1",
-    title: "Bedtime Relaxation",
-    description: "A calming exercise to prepare your mind and body for sleep",
-    duration: 15,
-    script: "Lie comfortably in bed. Take three deep breaths. With each exhale, feel yourself sinking deeper into relaxation. Imagine a peaceful scene - perhaps a beach at sunset or a quiet forest. Engage all your senses in this imagery. What do you see? Hear? Feel? As you continue breathing slowly, allow your body to become heavy and your mind to quiet.",
-    category: "sleep"
-  },
-  {
-    id: "focus-1",
-    title: "Mindful Awareness",
-    description: "A short mindfulness exercise to improve focus and present-moment awareness",
-    duration: 7,
-    script: "Sit in a comfortable position with your back straight. Focus your attention on your breath, feeling the sensation of air moving in and out of your body. When your mind wanders, gently bring your attention back to your breath without judgment. Notice the thoughts that arise, acknowledge them, and let them pass like clouds in the sky.",
-    category: "focus"
-  },
-  {
-    id: "gratitude-1",
-    title: "Gratitude Meditation",
-    description: "A positive meditation focusing on gratitude and appreciation",
-    duration: 8,
-    script: "Close your eyes and take a few deep breaths. Bring to mind something or someone you're grateful for. It could be something simple - a warm cup of tea, a kind gesture, or a beautiful sunset. Feel the gratitude in your heart. Notice how this feeling affects your body and mind. Continue bringing to mind things you appreciate, savoring each one.",
-    category: "general"
-  }
-]
+import { Play, Pause } from "lucide-react"
+import { type MeditationExercise, meditationExercises } from "./data/meditations"
 
 export function GuidedMeditation({ concernCategory = "general" }: { concernCategory?: string }) {
   const [selectedExercise, setSelectedExercise] = useState<MeditationExercise | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [playingAudioSrc, setPlayingAudioSrc] = useState<string | null>(null); // State for the audio source
   const [volume, setVolume] = useState(80)
   const [currentTime, setCurrentTime] = useState(0)
   
-  // Enhanced debug logs
-  console.log("GuidedMeditation rendering with category:", concernCategory);
-  console.log("All meditation categories:", meditationExercises.map(ex => ex.category));
-  
   // Filter exercises based on user concerns if provided
-  const filteredExercises = concernCategory 
-    ? meditationExercises.filter(ex => {
-        // More lenient matching
-        return ex.category === "general" || // Always include general exercises
-               ex.category === concernCategory || // Exact match
-               // Partial matches
-               ex.category.includes(concernCategory) || 
-               concernCategory.includes(ex.category);
-      })
-    : meditationExercises
-    
-  console.log("Meditation exercises database contains:", meditationExercises.length, "items");
-  console.log("Filtered exercises:", filteredExercises.length, "items");
-  
-  // If no exercises match, log detailed info for debugging
-  if (filteredExercises.length === 0) {
-    console.log("No matching exercises found. Detailed debug info:");
-    console.log("Concern category:", concernCategory);
-    console.log("All exercise categories:", meditationExercises.map(ex => ({ title: ex.title, category: ex.category })));
-  }
+  const normalizedConcern = concernCategory?.toLowerCase();
 
-  // If no exercises match after lenient matching, use general meditation exercises
-  const displayExercises = filteredExercises.length > 0 
-    ? filteredExercises 
-    : meditationExercises.filter(exercise => 
-        exercise.category.toLowerCase().includes("general") || 
-        exercise.category.toLowerCase() === "all"
-      );
-  
-  // If still no exercises, just show all exercises
-  const finalExercises = displayExercises.length > 0 ? displayExercises : meditationExercises;
-  
-  console.log("Final exercises to display:", finalExercises.length);
+  let finalExercises = meditationExercises.filter(ex => {
+    // If no concern category is provided, show all exercises.
+    if (!normalizedConcern) {
+      return true;
+    }
+    const normalizedExCategory = ex.category.toLowerCase();
+    // Always include 'general' exercises.
+    if (normalizedExCategory === 'general') {
+      return true;
+    }
+    // Match specific category (exact or partial using includes, like original logic)
+    return normalizedExCategory === normalizedConcern ||
+           normalizedExCategory.includes(normalizedConcern) ||
+           normalizedConcern.includes(normalizedExCategory);
+  });
+
+  // Fallback: If filtering yielded no results *and* a specific concern was provided, show all exercises.
+  if (normalizedConcern && finalExercises.length === 0 && meditationExercises.length > 0) {
+    finalExercises = meditationExercises; // Fallback to showing all
+  }
 
   const handleSelectExercise = (exercise: MeditationExercise) => {
     setSelectedExercise(exercise)
+    setPlayingAudioSrc(exercise.audioSrc ?? null); // Set the audio source
     setIsPlaying(false)
     setCurrentTime(0)
   }
@@ -134,7 +69,20 @@ export function GuidedMeditation({ concernCategory = "general" }: { concernCateg
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             {finalExercises.map((exercise) => (
-              <Card key={exercise.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSelectExercise(exercise)}>
+              <Card
+                key={exercise.id}
+                className={`cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors ${selectedExercise?.id === exercise.id ? 'border-primary border-2' : ''}`}
+                onClick={() => handleSelectExercise(exercise)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Play ${exercise.title}`}
+                onKeyDown={(e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault(); // Prevent scrolling on spacebar press
+                    handleSelectExercise(exercise);
+                  }
+                }}
+              >
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">{exercise.title}</CardTitle>
                   <CardDescription>{exercise.duration} minutes</CardDescription>
@@ -157,6 +105,17 @@ export function GuidedMeditation({ concernCategory = "general" }: { concernCateg
           <CardContent>
             <p>
               Please try a different category or contact support for assistance.
+      {/* Audio Player */}
+      {playingAudioSrc && (
+        <div className="mt-6 p-4 border rounded-lg bg-muted">
+          <h4 className="font-semibold mb-2">Now Playing: {selectedExercise?.title}</h4>
+          <audio controls src={playingAudioSrc} className="w-full">
+            Your browser does not support the audio element.
+          </audio>
+          {/* TODO: Add volume slider and custom controls later if needed */}
+        </div>
+      )}
+
             </p>
           </CardContent>
         </Card>
